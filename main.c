@@ -14,6 +14,11 @@
 #include <stdbool.h>
 #include <time.h>
 
+#include <images/8.h>
+#include <images/16.h>
+#include <images/32.h>
+#include <images/64.h>
+
 #define TAMALR_AUDIO_FREQUENCY 44100
 #define TAMALR_AUDIO_PERIOD (1.0f / TAMALR_AUDIO_FREQUENCY)
 #define TAMALR_AUDIO_SAMPLES 44100 / 30
@@ -125,15 +130,50 @@ void tamalr_update_screen(void)
     }
   }
 
+  const unsigned char** images;
+
+  switch (tamalr.video_scale)
+  {
+  case 1:
+    images = images_8;
+    break;
+  case 2:
+    images = images_16;
+    break;
+  case 4:
+    images = images_32;
+    break;
+  case 8:
+    images = images_64;
+    break;
+  default:
+    return;
+  }
+
   for (unsigned i = 0; i < ICON_NUM; i++)
   {
-    unsigned x = ((i % 4) * 8) + 4;
-    unsigned y = i >= 4 ? 28 : 4;
-    unsigned color = tamalr.video_icons[i] ? 0xF800 : 0x0000;
+    unsigned x = (i % 4) * 8;
+    unsigned y = i >= 4 ? 24 * tamalr.video_scale : 0;
 
-    tamalr.video_screen[(tamalr.video_scale * LCD_WIDTH) *
-                        (tamalr.video_scale * y) +
-                        (tamalr.video_scale * x)] = color;
+    /* Calculate base address in framebuffer where the image is copied */
+    unsigned short *framebuffer_ptr = (unsigned short*)&tamalr.video_screen[
+      (tamalr.video_scale * LCD_WIDTH * y) + (tamalr.video_scale * x)
+    ];
+
+    for (int h = 0; h < 8 * tamalr.video_scale; h++)
+    {
+      if (tamalr.video_icons[i])
+      {
+        memcpy(&framebuffer_ptr[h * tamalr.video_scale * LCD_WIDTH],
+               &images[i][h * 16 * tamalr.video_scale],
+               8 * tamalr.video_scale * 2);
+      }
+      else
+      {
+        memset(&framebuffer_ptr[h * tamalr.video_scale * LCD_WIDTH], 0,
+               8 * tamalr.video_scale * 2);
+      }
+    }
   }
 }
 
@@ -291,7 +331,7 @@ float pf_wave(float x, u8_t cosine)
 void retro_init(void)
 {
   memset(&tamalr, 0, sizeof(tamalr));
-  tamalr.video_scale = 1;
+  tamalr.video_scale = 8;
 
   if (!environ_cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &log_cb))
     log_cb = NULL;
@@ -384,8 +424,8 @@ void retro_get_system_info(struct retro_system_info *info)
 void retro_get_system_av_info(struct retro_system_av_info *info)
 {
   memset(info, 0, sizeof(*info));
-  info->geometry.base_width   = LCD_WIDTH;
-  info->geometry.base_height  = LCD_WIDTH;
+  info->geometry.base_width   = LCD_WIDTH * 8;
+  info->geometry.base_height  = LCD_WIDTH * 8;
   info->geometry.max_width    = LCD_WIDTH * 8;
   info->geometry.max_height   = LCD_WIDTH * 8;
   info->geometry.aspect_ratio = 1.0;
