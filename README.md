@@ -2,7 +2,7 @@
 
 WIP port of the TamaLIB Tamagotchi P1 emulator to libretro
 
-![image](https://github.com/user-attachments/assets/c2170604-694e-4e3e-bf27-d2c72e4101e1)
+![image](https://github.com/user-attachments/assets/21ab4324-3bd5-4dcc-b8ea-b562e7deb907)
 
 ## Usage
 Load the libretro core with `tama.b` (MD5 `3fce172403c27274e59723bbb9f6d8e9`)
@@ -17,7 +17,7 @@ Load the libretro core with `tama.b` (MD5 `3fce172403c27274e59723bbb9f6d8e9`)
 ## Features
 - [x] Core Tamagotchi emulation
 - [x] Button controls
-- [ ] Screen icons
+- [x] Screen icons
 - [ ] Sound
 - [ ] Savestates
 
