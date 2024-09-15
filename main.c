@@ -549,23 +549,23 @@ bool retro_serialize(void *data, size_t size)
   if (!state || size < retro_serialize_size())
     return false;
 
-  if (!tamalr_serialize(data, &offset, &state->pc, sizeof(u13_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->x, sizeof(u12_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->y, sizeof(u12_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->a, sizeof(u4_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->b, sizeof(u4_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->np, sizeof(u5_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->sp, sizeof(u8_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->flags, sizeof(u4_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->tick_counter, sizeof(u32_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->clk_timer_timestamp, sizeof(u32_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->prog_timer_timestamp, sizeof(u32_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->prog_timer_enabled, sizeof(bool_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->prog_timer_data, sizeof(u8_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->prog_timer_rld, sizeof(u8_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->call_depth, sizeof(u32_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->interrupts, sizeof(interrupt_t))) return false;
-  if (!tamalr_serialize(data, &offset, &state->memory, MEM_BUFFER_SIZE)) return false;
+  if (!tamalr_serialize(data, &offset, state->pc, sizeof(u13_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->x, sizeof(u12_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->y, sizeof(u12_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->a, sizeof(u4_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->b, sizeof(u4_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->np, sizeof(u5_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->sp, sizeof(u8_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->flags, sizeof(u4_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->tick_counter, sizeof(u32_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->clk_timer_timestamp, sizeof(u32_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->prog_timer_timestamp, sizeof(u32_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->prog_timer_enabled, sizeof(bool_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->prog_timer_data, sizeof(u8_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->prog_timer_rld, sizeof(u8_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->call_depth, sizeof(u32_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->interrupts, sizeof(interrupt_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->memory, MEM_BUFFER_SIZE)) return false;
 
   return true;
 }
@@ -586,23 +586,23 @@ bool retro_unserialize(const void *data, size_t size)
   if (!state || size < retro_serialize_size())
     return false;
 
-  if (!tamalr_unserialize(data, &offset, &state->pc, sizeof(u13_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->x, sizeof(u12_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->y, sizeof(u12_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->a, sizeof(u4_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->b, sizeof(u4_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->np, sizeof(u5_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->sp, sizeof(u8_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->flags, sizeof(u4_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->tick_counter, sizeof(u32_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->clk_timer_timestamp, sizeof(u32_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->prog_timer_timestamp, sizeof(u32_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->prog_timer_enabled, sizeof(bool_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->prog_timer_data, sizeof(u8_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->prog_timer_rld, sizeof(u8_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->call_depth, sizeof(u32_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->interrupts, sizeof(interrupt_t))) return false;
-  if (!tamalr_unserialize(data, &offset, &state->memory, MEM_BUFFER_SIZE)) return false;
+  if (!tamalr_unserialize(data, &offset, state->pc, sizeof(u13_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->x, sizeof(u12_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->y, sizeof(u12_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->a, sizeof(u4_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->b, sizeof(u4_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->np, sizeof(u5_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->sp, sizeof(u8_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->flags, sizeof(u4_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->tick_counter, sizeof(u32_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->clk_timer_timestamp, sizeof(u32_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->prog_timer_timestamp, sizeof(u32_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->prog_timer_enabled, sizeof(bool_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->prog_timer_data, sizeof(u8_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->prog_timer_rld, sizeof(u8_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->call_depth, sizeof(u32_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->interrupts, sizeof(interrupt_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->memory, MEM_BUFFER_SIZE)) return false;
 
   return true;
 }
