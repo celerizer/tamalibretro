@@ -23,15 +23,18 @@ static bool_t audio_wavetables_compiled = false;
 
 typedef struct tamalr_t
 {
-  bool audio_playing;
+  bool_t audio_playing;
   unsigned audio_sine_pos;
   uint32_t audio_frequency;
   int16_t *audio_samples;
   
-  uint16_t video_buffer[LCD_HEIGHT][LCD_WIDTH];
-  bool video_icons[ICON_NUM];
+  bool_t video_buffer[LCD_HEIGHT][LCD_WIDTH];
+  uint16_t video_screen[256 * 256];
+  bool_t video_icons[ICON_NUM];
 
   u12_t rom[12288 / 2];
+
+  unsigned video_scale;
   
   hal_t hal;
 } tamalr_t;
@@ -102,15 +105,42 @@ timestamp_t tamalr_get_timestamp(void)
   return ts;
 }
 
-/* Stubbed, as this is not called from step mode */
 void tamalr_update_screen(void)
 {
+  for (unsigned y = 0; y < LCD_HEIGHT; y++)
+  {
+    for (unsigned x = 0; x < LCD_WIDTH; x++)
+    {
+      uint16_t color = tamalr.video_buffer[y][x] ? 0x0000 : 0xFFFF;
+
+      for (unsigned sy = 0; sy < tamalr.video_scale; sy++)
+      {
+        for (unsigned sx = 0; sx < tamalr.video_scale; sx++)
+        {
+          tamalr.video_screen[(tamalr.video_scale * LCD_WIDTH) *
+                              (tamalr.video_scale * (y + 8) + sy) +
+                              (tamalr.video_scale * x + sx)] = color;
+        }
+      }
+    }
+  }
+
+  for (unsigned i = 0; i < ICON_NUM; i++)
+  {
+    unsigned x = ((i % 4) * 8) + 4;
+    unsigned y = i >= 4 ? 28 : 4;
+    unsigned color = tamalr.video_icons[i] ? 0xF800 : 0x0000;
+
+    tamalr.video_screen[(tamalr.video_scale * LCD_WIDTH) *
+                        (tamalr.video_scale * y) +
+                        (tamalr.video_scale * x)] = color;
+  }
 }
 
 void tamalr_set_lcd_matrix(u8_t x, u8_t y, bool_t val)
 {
   if (x < LCD_WIDTH && y < LCD_HEIGHT)
-    tamalr.video_buffer[y][x] = val ? 0x0000 : 0xFFFF;
+    tamalr.video_buffer[y][x] = val;
 }
 
 void tamalr_set_lcd_icon(u8_t icon, bool_t val)
@@ -151,7 +181,7 @@ void tamalr_set_frequency(u32_t freq)
     break;
   default:
     tamalr.audio_samples = audio_wavetable[4];
-  }    
+  }
 }
 
 void tamalr_play_frequency(bool_t en)
@@ -260,12 +290,15 @@ float pf_wave(float x, u8_t cosine)
 
 void retro_init(void)
 {
+  memset(&tamalr, 0, sizeof(tamalr));
+  tamalr.video_scale = 1;
+
   if (!environ_cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &log_cb))
     log_cb = NULL;
 
   if (!audio_wavetables_compiled)
   {
-  int i;
+    int i;
   
     for (i = 0; i < TAMALR_AUDIO_SAMPLES; i++)
     {
@@ -322,7 +355,7 @@ void retro_unload_game(void)
 void retro_run(void)
 {
   handle_input();
-  
+
   for (int i = 0; i < 200; i++)
   {
     tamalib_set_exec_mode(EXEC_MODE_RUN);
@@ -331,7 +364,11 @@ void retro_run(void)
 
   audio_batch_cb(tamalr.audio_playing ? tamalr.audio_samples : audio_wavetable[8], TAMALR_AUDIO_SAMPLES);
 
-  video_cb(tamalr.video_buffer, LCD_WIDTH, LCD_HEIGHT, LCD_WIDTH * 2);
+  tamalr.hal.update_screen();
+  video_cb(tamalr.video_screen,
+           LCD_WIDTH * tamalr.video_scale,
+           LCD_WIDTH * tamalr.video_scale,
+           LCD_WIDTH * tamalr.video_scale * 2);
 }
 
 void retro_get_system_info(struct retro_system_info *info)
@@ -348,10 +385,10 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 {
   memset(info, 0, sizeof(*info));
   info->geometry.base_width   = LCD_WIDTH;
-  info->geometry.base_height  = LCD_HEIGHT;
-  info->geometry.max_width    = LCD_WIDTH;
-  info->geometry.max_height   = LCD_HEIGHT;
-  info->geometry.aspect_ratio = LCD_WIDTH / LCD_HEIGHT;
+  info->geometry.base_height  = LCD_WIDTH;
+  info->geometry.max_width    = LCD_WIDTH * 8;
+  info->geometry.max_height   = LCD_WIDTH * 8;
+  info->geometry.aspect_ratio = 1.0;
   info->timing.fps            = 30;
   info->timing.sample_rate    = 44100;
 }
@@ -401,7 +438,7 @@ void retro_set_environment(retro_environment_t cb)
   };
   enum retro_pixel_format rgb565 = RETRO_PIXEL_FORMAT_RGB565;
   bool support_no_game = false;
-   
+ 
   environ_cb = cb;
   cb(RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, desc);
   cb(RETRO_ENVIRONMENT_SET_CONTROLLER_INFO,   (void*)ports);
@@ -458,9 +495,10 @@ size_t retro_serialize_size(void)
 
 static bool tamalr_serialize(void *data, size_t *offset, const void *field_data, size_t field_size)
 {
-    memcpy((uint8_t*)data + *offset, field_data, field_size);
-    *offset += field_size;
-    return true;
+  memcpy((uint8_t*)data + *offset, field_data, field_size);
+  *offset += field_size;
+
+  return true;
 }
 
 bool retro_serialize(void *data, size_t size)
@@ -494,9 +532,10 @@ bool retro_serialize(void *data, size_t size)
 
 static bool tamalr_unserialize(const void *data, size_t *offset, void *field_data, size_t field_size)
 {
-    memcpy(field_data, (const uint8_t*)data + *offset, field_size);
-    *offset += field_size;
-    return true;
+  memcpy(field_data, (const uint8_t*)data + *offset, field_size);
+  *offset += field_size;
+
+  return true;
 }
 
 bool retro_unserialize(const void *data, size_t size)
