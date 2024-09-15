@@ -3,6 +3,8 @@
 #include <streams/file_stream.h>
 #include <string/stdstring.h>
 
+#define LOW_FOOTPRINT 0
+
 #include <cpu.h>
 #include <hal.h>
 #include <tamalib.h>
@@ -28,6 +30,8 @@ typedef struct tamalr_t
   
   uint16_t video_buffer[LCD_HEIGHT][LCD_WIDTH];
   bool video_icons[ICON_NUM];
+
+  u12_t rom[12288 / 2];
   
   hal_t hal;
 } tamalr_t;
@@ -123,31 +127,31 @@ void tamalr_set_frequency(u32_t freq)
   {
   case 40960:
     tamalr.audio_samples = audio_wavetable[0];
-	break;
+    break;
   case 32768:
     tamalr.audio_samples = audio_wavetable[1];
-	break;
+    break;
   case 27307:
     tamalr.audio_samples = audio_wavetable[2];
-	break;
+    break;
   case 23406:
     tamalr.audio_samples = audio_wavetable[3];
-	break;
+    break;
   case 20480:
     tamalr.audio_samples = audio_wavetable[4];
-	break;
+    break;
   case 16384:
     tamalr.audio_samples = audio_wavetable[5];
-	break;
+    break;
   case 13653:
     tamalr.audio_samples = audio_wavetable[6];
-	break;
+    break;
   case 11703:
     tamalr.audio_samples = audio_wavetable[7];
-	break;
+    break;
   default:
     tamalr.audio_samples = audio_wavetable[4];
-  }	  
+  }    
 }
 
 void tamalr_play_frequency(bool_t en)
@@ -261,19 +265,19 @@ void retro_init(void)
 
   if (!audio_wavetables_compiled)
   {
-	int i;
-	
+  int i;
+  
     for (i = 0; i < TAMALR_AUDIO_SAMPLES; i++)
     {
       audio_wavetable[0][i] = pf_wave((2 * PF_PI * 4096.0 * (float)i * TAMALR_AUDIO_PERIOD), false);
       audio_wavetable[1][i] = pf_wave((2 * PF_PI * 3276.8 * (float)i * TAMALR_AUDIO_PERIOD), false);
       audio_wavetable[2][i] = pf_wave((2 * PF_PI * 2730.7 * (float)i * TAMALR_AUDIO_PERIOD), false);
-	  audio_wavetable[3][i] = pf_wave((2 * PF_PI * 2340.6 * (float)i * TAMALR_AUDIO_PERIOD), false);
-	  audio_wavetable[4][i] = pf_wave((2 * PF_PI * 2048.0 * (float)i * TAMALR_AUDIO_PERIOD), false);
-	  audio_wavetable[5][i] = pf_wave((2 * PF_PI * 1638.4 * (float)i * TAMALR_AUDIO_PERIOD), false);
-	  audio_wavetable[6][i] = pf_wave((2 * PF_PI * 1365.3 * (float)i * TAMALR_AUDIO_PERIOD), false);
-	  audio_wavetable[7][i] = pf_wave((2 * PF_PI * 1170.3 * (float)i * TAMALR_AUDIO_PERIOD), false);
-	  audio_wavetable[8][i] = 0;
+      audio_wavetable[3][i] = pf_wave((2 * PF_PI * 2340.6 * (float)i * TAMALR_AUDIO_PERIOD), false);
+      audio_wavetable[4][i] = pf_wave((2 * PF_PI * 2048.0 * (float)i * TAMALR_AUDIO_PERIOD), false);
+      audio_wavetable[5][i] = pf_wave((2 * PF_PI * 1638.4 * (float)i * TAMALR_AUDIO_PERIOD), false);
+      audio_wavetable[6][i] = pf_wave((2 * PF_PI * 1365.3 * (float)i * TAMALR_AUDIO_PERIOD), false);
+      audio_wavetable[7][i] = pf_wave((2 * PF_PI * 1170.3 * (float)i * TAMALR_AUDIO_PERIOD), false);
+      audio_wavetable[8][i] = 0;
     }
     audio_wavetables_compiled = true;
   }
@@ -284,27 +288,26 @@ void retro_reset(void)
   tamalib_reset();
 }
 
-static u12_t tamarom[12288 / 2];
-
 bool retro_load_game(const struct retro_game_info *info)
 {
   if (info && info->data && info->size)
   {
-	u8_t buf[2];
-	int i;
+    u8_t buf[2];
+    int i;
 
-	for (i = 0; i < info->size; i += 2)
-	{
-	  memcpy(buf, &((u8_t*)(info->data))[i], 2);
-	  tamarom[i / 2] = buf[1] | ((buf[0] & 0xF) << 8);
-	}
-	
-	init_tamalr_hal();
+    /* Bitshift the ROM into the correct format */
+    for (i = 0; i < info->size; i += 2)
+    {
+      memcpy(buf, &((u8_t*)(info->data))[i], 2);
+      tamalr.rom[i / 2] = buf[1] | ((buf[0] & 0xF) << 8);
+    }  
+    init_tamalr_hal();
     tamalib_register_hal(&tamalr.hal);
-    return tamalib_init(tamarom, NULL, 1000000) == 0;
+
+    return tamalib_init(tamalr.rom, NULL, 1000000) == 0;
   }
   else
-	return false;
+    return false;
 }
 
 bool retro_load_game_special(unsigned type, const struct retro_game_info *info, size_t num_info)
@@ -334,8 +337,8 @@ void retro_run(void)
 void retro_get_system_info(struct retro_system_info *info)
 {
   memset(info, 0, sizeof(*info));
-  info->library_name     = "tamalibretro";
-  info->library_version  = "0";
+  info->library_name     = "TamaLIBretro";
+  info->library_version  = GIT_VERSION;
   info->need_fullpath    = false;
   info->valid_extensions = "rom|b|bin";
   info->block_extract    = false;
@@ -391,9 +394,9 @@ void retro_set_environment(retro_environment_t cb)
   struct retro_input_descriptor desc[] =
   {
     { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y, "A (Select)" },
-	{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B, "B (Execute)" },
-	{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A, "C (Cancel)" },
-	
+    { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B, "B (Execute)" },
+    { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A, "C (Cancel)" },
+
     { 0 },
   };
   enum retro_pixel_format rgb565 = RETRO_PIXEL_FORMAT_RGB565;
@@ -434,27 +437,105 @@ void retro_set_video_refresh(retro_video_refresh_t cb)
 
 size_t retro_serialize_size(void)
 {
-  return 0;
+  return /* pc                   */ sizeof(u13_t) + 
+         /* x                    */ sizeof(u12_t) + 
+         /* y                    */ sizeof(u12_t) + 
+         /* a                    */ sizeof(u4_t) +
+         /* b                    */ sizeof(u4_t) +
+         /* np                   */ sizeof(u5_t) +
+         /* sp                   */ sizeof(u8_t) +
+         /* flags                */ sizeof(u4_t) +
+         /* tick_counter         */ sizeof(u32_t) +
+         /* clk_timer_timestamp  */ sizeof(u32_t) +
+         /* prog_timer_timestamp */ sizeof(u32_t) +
+         /* prog_timer_enabled   */ sizeof(bool_t) +
+         /* prog_timer_data      */ sizeof(u8_t) +
+         /* prog_timer_rld       */ sizeof(u8_t) +
+         /* call_depth           */ sizeof(u32_t) +
+         /* interrupts           */ sizeof(interrupt_t) +
+         /* memory               */ MEM_BUFFER_SIZE;
+}
+
+static bool tamalr_serialize(void *data, size_t *offset, const void *field_data, size_t field_size)
+{
+    memcpy((uint8_t*)data + *offset, field_data, field_size);
+    *offset += field_size;
+    return true;
 }
 
 bool retro_serialize(void *data, size_t size)
 {
-  return false;
+  state_t *state = cpu_get_state();
+  size_t offset = 0;
+
+  if (!state || size < retro_serialize_size())
+    return false;
+
+  if (!tamalr_serialize(data, &offset, &state->pc, sizeof(u13_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->x, sizeof(u12_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->y, sizeof(u12_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->a, sizeof(u4_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->b, sizeof(u4_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->np, sizeof(u5_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->sp, sizeof(u8_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->flags, sizeof(u4_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->tick_counter, sizeof(u32_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->clk_timer_timestamp, sizeof(u32_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->prog_timer_timestamp, sizeof(u32_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->prog_timer_enabled, sizeof(bool_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->prog_timer_data, sizeof(u8_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->prog_timer_rld, sizeof(u8_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->call_depth, sizeof(u32_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->interrupts, sizeof(interrupt_t))) return false;
+  if (!tamalr_serialize(data, &offset, &state->memory, MEM_BUFFER_SIZE)) return false;
+
+  return true;
+}
+
+static bool tamalr_unserialize(const void *data, size_t *offset, void *field_data, size_t field_size)
+{
+    memcpy(field_data, (const uint8_t*)data + *offset, field_size);
+    *offset += field_size;
+    return true;
 }
 
 bool retro_unserialize(const void *data, size_t size)
 {
-  return false;
+  state_t *state = cpu_get_state();
+  size_t offset = 0;
+
+  if (!state || size < retro_serialize_size())
+    return false;
+
+  if (!tamalr_unserialize(data, &offset, &state->pc, sizeof(u13_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->x, sizeof(u12_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->y, sizeof(u12_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->a, sizeof(u4_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->b, sizeof(u4_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->np, sizeof(u5_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->sp, sizeof(u8_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->flags, sizeof(u4_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->tick_counter, sizeof(u32_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->clk_timer_timestamp, sizeof(u32_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->prog_timer_timestamp, sizeof(u32_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->prog_timer_enabled, sizeof(bool_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->prog_timer_data, sizeof(u8_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->prog_timer_rld, sizeof(u8_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->call_depth, sizeof(u32_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->interrupts, sizeof(interrupt_t))) return false;
+  if (!tamalr_unserialize(data, &offset, &state->memory, MEM_BUFFER_SIZE)) return false;
+
+  return true;
 }
 
 void *retro_get_memory_data(unsigned type)
 {
   const state_t *state = cpu_get_state();
-  
+
   if (state && type == RETRO_MEMORY_SYSTEM_RAM)
     return state->memory;
   else
-	return NULL;
+    return NULL;
 }
 
 size_t retro_get_memory_size(unsigned type)
