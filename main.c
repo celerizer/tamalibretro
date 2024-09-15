@@ -1,0 +1,474 @@
+#include <stdio.h>
+#include <libretro.h>
+#include <streams/file_stream.h>
+#include <string/stdstring.h>
+
+#include <cpu.h>
+#include <hal.h>
+#include <tamalib.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <time.h>
+
+#define TAMALR_AUDIO_FREQUENCY 44100
+#define TAMALR_AUDIO_PERIOD (1.0f / TAMALR_AUDIO_FREQUENCY)
+#define TAMALR_AUDIO_SAMPLES 44100 / 30
+
+static int16_t audio_wavetable[9][TAMALR_AUDIO_SAMPLES];
+static bool_t audio_wavetables_compiled = false;
+
+typedef struct tamalr_t
+{
+  bool audio_playing;
+  unsigned audio_sine_pos;
+  uint32_t audio_frequency;
+  int16_t *audio_samples;
+  
+  uint16_t video_buffer[LCD_HEIGHT][LCD_WIDTH];
+  bool video_icons[ICON_NUM];
+  
+  hal_t hal;
+} tamalr_t;
+
+static tamalr_t tamalr;
+
+void* tamalr_malloc(u32_t size)
+{
+  return malloc(size);
+}
+
+void tamalr_free(void* ptr)
+{
+  free(ptr);
+}
+
+void tamalr_halt(void)
+{
+}
+
+bool_t tamalr_is_log_enabled(log_level_t level)
+{
+  return 0;
+}
+
+static const char *log_level(log_level_t level)
+{
+  switch (level)
+  {
+  case LOG_ERROR:
+    return "ERROR";
+  case LOG_INFO:
+    return "INFO ";
+  case LOG_MEMORY:
+    return "MEM  ";
+  case LOG_CPU:
+    return "CPU  ";
+  default:
+    return "???  ";
+  }
+}
+
+void tamalr_log(log_level_t level, char *buff, ...)
+{
+/*
+  va_list args;
+  va_start(args, buff);
+  printf("[TAMALIB %s]: ", log_level(level));
+  vprintf(buff, args);
+  printf("\n");
+  va_end(args);
+*/
+}
+
+void tamalr_sleep_until(timestamp_t ts)
+{
+  //struct timespec sleep_time = { ts / 1000000, (ts % 1000000) * 1000 };
+  //nanosleep(&sleep_time, NULL);
+}
+
+timestamp_t tamalr_get_timestamp(void)
+{
+  struct timespec current_time;
+
+  clock_gettime(CLOCK_MONOTONIC, &current_time);
+  timestamp_t ts = (timestamp_t)(current_time.tv_sec * 1000000LL + current_time.tv_nsec / 1000LL);
+
+  return ts;
+}
+
+/* Stubbed, as this is not called from step mode */
+void tamalr_update_screen(void)
+{
+}
+
+void tamalr_set_lcd_matrix(u8_t x, u8_t y, bool_t val)
+{
+  if (x < LCD_WIDTH && y < LCD_HEIGHT)
+    tamalr.video_buffer[y][x] = val ? 0x0000 : 0xFFFF;
+}
+
+void tamalr_set_lcd_icon(u8_t icon, bool_t val)
+{
+  if (icon < ICON_NUM)
+    tamalr.video_icons[icon] = val;
+}
+
+/* todo */
+void tamalr_set_frequency(u32_t freq)
+{
+  tamalr.audio_frequency = freq;
+  switch (freq)
+  {
+  case 40960:
+    tamalr.audio_samples = audio_wavetable[0];
+	break;
+  case 32768:
+    tamalr.audio_samples = audio_wavetable[1];
+	break;
+  case 27307:
+    tamalr.audio_samples = audio_wavetable[2];
+	break;
+  case 23406:
+    tamalr.audio_samples = audio_wavetable[3];
+	break;
+  case 20480:
+    tamalr.audio_samples = audio_wavetable[4];
+	break;
+  case 16384:
+    tamalr.audio_samples = audio_wavetable[5];
+	break;
+  case 13653:
+    tamalr.audio_samples = audio_wavetable[6];
+	break;
+  case 11703:
+    tamalr.audio_samples = audio_wavetable[7];
+	break;
+  default:
+    tamalr.audio_samples = audio_wavetable[4];
+  }	  
+}
+
+void tamalr_play_frequency(bool_t en)
+{
+  tamalr.audio_playing = en;
+}
+
+/* Stubbed, as this is not called from step mode */
+int tamalr_handler(void)
+{
+  return 0;
+}
+
+/* Initialize the global HAL structure with the stubbed functions */
+void init_tamalr_hal(void)
+{
+  tamalr.hal.malloc = tamalr_malloc;
+  tamalr.hal.free = tamalr_free;
+  tamalr.hal.halt = tamalr_halt;
+  tamalr.hal.is_log_enabled = tamalr_is_log_enabled;
+  tamalr.hal.log = tamalr_log;
+  tamalr.hal.sleep_until = tamalr_sleep_until;
+  tamalr.hal.get_timestamp = tamalr_get_timestamp;
+  tamalr.hal.update_screen = tamalr_update_screen;
+  tamalr.hal.set_lcd_matrix = tamalr_set_lcd_matrix;
+  tamalr.hal.set_lcd_icon = tamalr_set_lcd_icon;
+  tamalr.hal.set_frequency = tamalr_set_frequency;
+  tamalr.hal.play_frequency = tamalr_play_frequency;
+  tamalr.hal.handler = tamalr_handler;
+}
+
+/* libretro callbacks */
+static retro_audio_sample_t audio_cb;
+static retro_audio_sample_batch_t audio_batch_cb;
+static retro_environment_t environ_cb;
+static retro_input_poll_t input_poll_cb;
+static retro_input_state_t input_state_cb;
+static retro_log_printf_t log_cb;
+static struct retro_rumble_interface rumble;
+static retro_video_refresh_t video_cb;
+
+void display_message(const char *msg)
+{
+  char *str = (char*)calloc(4096, sizeof(char));
+  struct retro_message rmsg;
+
+  snprintf(str, 4096, "%s", msg);
+  rmsg.frames = 300;
+  rmsg.msg = str;
+  environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &rmsg);
+}
+
+void handle_input(void)
+{
+  input_poll_cb();
+  tamalib_set_button(BTN_LEFT, input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y));
+  tamalib_set_button(BTN_RIGHT, input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A));
+  tamalib_set_button(BTN_MIDDLE, input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B));
+}
+
+/* libretro API */
+
+#define PF_PI 3.141592653589793115997963468544185161590576171875f
+
+/* Largest Taylor series factorial a float can hold */
+#define PF_TERMS 32
+
+float pf_factorial(u8_t x)
+{
+  float result = x;
+
+  for (x--; x > 1; x--)
+    result *= x;
+
+  return result;
+}
+
+float pf_power(float x, u8_t power)
+{
+  float result = x;
+
+  for (; power > 1; power--)
+    result *= x;
+
+  return result;
+}
+
+float pf_wave(float x, u8_t cosine)
+{
+  float next, result;
+  u8_t positive = true;
+  u8_t i;
+
+  while (x > 2 * PF_PI)
+    x -= 2 * PF_PI;
+  result = cosine ? 1 : x;
+  for (i = cosine ? 2 : 3; i <= PF_TERMS; i += 2)
+  {
+    positive ^= true;
+    next = pf_power(x, i) / pf_factorial(i);
+    result = positive ? result + next : result - next;
+  }
+
+  return result;
+}
+
+void retro_init(void)
+{
+  if (!environ_cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &log_cb))
+    log_cb = NULL;
+
+  if (!audio_wavetables_compiled)
+  {
+	int i;
+	
+    for (i = 0; i < TAMALR_AUDIO_SAMPLES; i++)
+    {
+      audio_wavetable[0][i] = pf_wave((2 * PF_PI * 4096.0 * (float)i * TAMALR_AUDIO_PERIOD), false);
+      audio_wavetable[1][i] = pf_wave((2 * PF_PI * 3276.8 * (float)i * TAMALR_AUDIO_PERIOD), false);
+      audio_wavetable[2][i] = pf_wave((2 * PF_PI * 2730.7 * (float)i * TAMALR_AUDIO_PERIOD), false);
+	  audio_wavetable[3][i] = pf_wave((2 * PF_PI * 2340.6 * (float)i * TAMALR_AUDIO_PERIOD), false);
+	  audio_wavetable[4][i] = pf_wave((2 * PF_PI * 2048.0 * (float)i * TAMALR_AUDIO_PERIOD), false);
+	  audio_wavetable[5][i] = pf_wave((2 * PF_PI * 1638.4 * (float)i * TAMALR_AUDIO_PERIOD), false);
+	  audio_wavetable[6][i] = pf_wave((2 * PF_PI * 1365.3 * (float)i * TAMALR_AUDIO_PERIOD), false);
+	  audio_wavetable[7][i] = pf_wave((2 * PF_PI * 1170.3 * (float)i * TAMALR_AUDIO_PERIOD), false);
+	  audio_wavetable[8][i] = 0;
+    }
+    audio_wavetables_compiled = true;
+  }
+}
+
+void retro_reset(void)
+{
+  tamalib_reset();
+}
+
+static u12_t tamarom[12288 / 2];
+
+bool retro_load_game(const struct retro_game_info *info)
+{
+  if (info && info->data && info->size)
+  {
+	u8_t buf[2];
+	int i;
+
+	for (i = 0; i < info->size; i += 2)
+	{
+	  memcpy(buf, &((u8_t*)(info->data))[i], 2);
+	  tamarom[i / 2] = buf[1] | ((buf[0] & 0xF) << 8);
+	}
+	
+	init_tamalr_hal();
+    tamalib_register_hal(&tamalr.hal);
+    return tamalib_init(tamarom, NULL, 1000000) == 0;
+  }
+  else
+	return false;
+}
+
+bool retro_load_game_special(unsigned type, const struct retro_game_info *info, size_t num_info)
+{
+  return false;
+}
+
+void retro_unload_game(void)
+{
+}
+
+void retro_run(void)
+{
+  handle_input();
+  
+  for (int i = 0; i < 200; i++)
+  {
+    tamalib_set_exec_mode(EXEC_MODE_RUN);
+    tamalib_step();
+  }
+
+  audio_batch_cb(tamalr.audio_playing ? tamalr.audio_samples : audio_wavetable[8], TAMALR_AUDIO_SAMPLES);
+
+  video_cb(tamalr.video_buffer, LCD_WIDTH, LCD_HEIGHT, LCD_WIDTH * 2);
+}
+
+void retro_get_system_info(struct retro_system_info *info)
+{
+  memset(info, 0, sizeof(*info));
+  info->library_name     = "tamalibretro";
+  info->library_version  = "0";
+  info->need_fullpath    = false;
+  info->valid_extensions = "rom|b|bin";
+  info->block_extract    = false;
+}
+
+void retro_get_system_av_info(struct retro_system_av_info *info)
+{
+  memset(info, 0, sizeof(*info));
+  info->geometry.base_width   = LCD_WIDTH;
+  info->geometry.base_height  = LCD_HEIGHT;
+  info->geometry.max_width    = LCD_WIDTH;
+  info->geometry.max_height   = LCD_HEIGHT;
+  info->geometry.aspect_ratio = LCD_WIDTH / LCD_HEIGHT;
+  info->timing.fps            = 30;
+  info->timing.sample_rate    = 44100;
+}
+
+void retro_deinit(void)
+{
+  tamalib_release();
+}
+
+unsigned retro_get_region(void)
+{
+  return RETRO_REGION_NTSC;
+}
+
+unsigned retro_api_version(void)
+{
+  return RETRO_API_VERSION;
+}
+
+void retro_set_controller_port_device(unsigned in_port, unsigned device)
+{
+}
+
+void retro_set_environment(retro_environment_t cb)
+{
+  static const struct retro_variable vars[] = 
+  {
+    { NULL, NULL },
+  };
+  static const struct retro_controller_description port[] =
+  {
+    { "Tamagotchi", RETRO_DEVICE_JOYPAD },
+    { 0 },
+  };
+  static const struct retro_controller_info ports[] =
+  {
+    { port, 1 },
+    { NULL, 0 },
+  };
+  struct retro_input_descriptor desc[] =
+  {
+    { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y, "A (Select)" },
+	{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B, "B (Execute)" },
+	{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A, "C (Cancel)" },
+	
+    { 0 },
+  };
+  enum retro_pixel_format rgb565 = RETRO_PIXEL_FORMAT_RGB565;
+  bool support_no_game = false;
+   
+  environ_cb = cb;
+  cb(RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, desc);
+  cb(RETRO_ENVIRONMENT_SET_CONTROLLER_INFO,   (void*)ports);
+  cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT,      &rgb565);
+  cb(RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME,   &support_no_game);
+  cb(RETRO_ENVIRONMENT_SET_VARIABLES,         (void*)vars);
+}
+
+void retro_set_audio_sample(retro_audio_sample_t cb)
+{
+  audio_cb = cb;
+}
+
+void retro_set_audio_sample_batch(retro_audio_sample_batch_t cb)
+{
+  audio_batch_cb = cb;
+}
+
+void retro_set_input_poll(retro_input_poll_t cb)
+{
+  input_poll_cb = cb;
+}
+
+void retro_set_input_state(retro_input_state_t cb)
+{
+  input_state_cb = cb;
+}
+
+void retro_set_video_refresh(retro_video_refresh_t cb)
+{
+  video_cb = cb;
+}
+
+size_t retro_serialize_size(void)
+{
+  return 0;
+}
+
+bool retro_serialize(void *data, size_t size)
+{
+  return false;
+}
+
+bool retro_unserialize(const void *data, size_t size)
+{
+  return false;
+}
+
+void *retro_get_memory_data(unsigned type)
+{
+  const state_t *state = cpu_get_state();
+  
+  if (state && type == RETRO_MEMORY_SYSTEM_RAM)
+    return state->memory;
+  else
+	return NULL;
+}
+
+size_t retro_get_memory_size(unsigned type)
+{
+  if (type == RETRO_MEMORY_SYSTEM_RAM)
+    return MEMORY_SIZE;
+  else
+    return 0;
+}
+
+void retro_cheat_reset(void)
+{
+}
+
+void retro_cheat_set(unsigned a, bool b, const char *c)
+{
+}

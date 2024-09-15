@@ -1,0 +1,37 @@
+LIBRETRO_COMM_DIR = $(CORE_DIR)/libretro-common
+TAMALIB_DIR = $(CORE_DIR)/tamalib
+
+INCFLAGS := \
+   -I$(CORE_DIR) \
+   -I$(TAMALIB_DIR)
+
+INCFLAGS += -I$(LIBRETRO_COMM_DIR)/include \
+   -I$(LIBRETRO_COMM_DIR)/include/compat \
+   -I$(LIBRETRO_COMM_DIR)/include/encodings \
+   -I$(LIBRETRO_COMM_DIR)/include/file \
+   -I$(LIBRETRO_COMM_DIR)/include/streams \
+   -I$(LIBRETRO_COMM_DIR)/include/string \
+   -I$(LIBRETRO_COMM_DIR)/include/vfs
+
+ifneq (,$(findstring msvc2003,$(platform)))
+INCFLAGS += -I$(LIBRETRO_COMM_DIR)/include/compat/msvc
+endif
+
+SOURCES_C := \
+   $(TAMALIB_DIR)/cpu.c \
+   $(TAMALIB_DIR)/hw.c \
+   $(TAMALIB_DIR)/tamalib.c \
+   $(CORE_DIR)/main.c
+
+ifneq ($(STATIC_LINKING), 1)
+SOURCES_C += \
+   $(LIBRETRO_COMM_DIR)/compat/fopen_utf8.c \
+   $(LIBRETRO_COMM_DIR)/compat/compat_strcasestr.c \
+   $(LIBRETRO_COMM_DIR)/compat/compat_strl.c \
+   $(LIBRETRO_COMM_DIR)/encodings/encoding_utf.c \
+   $(LIBRETRO_COMM_DIR)/file/file_path.c \
+   $(LIBRETRO_COMM_DIR)/streams/file_stream.c \
+   $(LIBRETRO_COMM_DIR)/string/stdstring.c \
+   $(LIBRETRO_COMM_DIR)/time/rtime.c \
+   $(LIBRETRO_COMM_DIR)/vfs/vfs_implementation.c
+endif
