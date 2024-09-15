@@ -1,6 +1,6 @@
 [submodule "tamalib"]
 	path = tamalib
-	url = https://github.com/jcrona/tamalib
+	url = https://github.com/celerizer/tamalib
 [submodule "libretro-common"]
 	path = libretro-common
 	url = https://github.com/libretro/libretro-common.git
