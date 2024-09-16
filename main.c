@@ -170,7 +170,7 @@ void tamalr_update_screen(void)
       }
       else
       {
-        memset(&framebuffer_ptr[h * tamalr.video_scale * LCD_WIDTH], 0,
+        memset(&framebuffer_ptr[h * tamalr.video_scale * LCD_WIDTH], 0xFF,
                8 * tamalr.video_scale * 2);
       }
     }
