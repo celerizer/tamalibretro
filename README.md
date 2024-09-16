@@ -18,7 +18,7 @@ Load the libretro core with `tama.b` (MD5 `3fce172403c27274e59723bbb9f6d8e9`)
 - [x] Core Tamagotchi emulation
 - [x] Button controls
 - [x] Screen icons
-- [ ] Sound
+- [x] Sound
 - [x] Savestates
 
 ## Building
