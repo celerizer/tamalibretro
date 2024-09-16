@@ -1,29 +1,40 @@
-#include <stdio.h>
-#include <libretro.h>
-#include <streams/file_stream.h>
-#include <string/stdstring.h>
-
 #define LOW_FOOTPRINT 0
+
+#include <libretro.h>
 
 #include <cpu.h>
 #include <hal.h>
 #include <tamalib.h>
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
-#include <stdbool.h>
+#include <string.h>
 #include <time.h>
 
+#ifndef TAMALR_VIDEO_MAX_SCALE
+  #define TAMALR_VIDEO_MAX_SCALE 8
+#endif
+
+#ifndef TAMALR_FRAMERATE
+  #define TAMALR_FRAMERATE 60
+#endif
+
 #include <images/8.h>
-#include <images/16.h>
-#include <images/32.h>
-#include <images/64.h>
+#if TAMALR_VIDEO_MAX_SCALE >= 2
+  #include <images/16.h>
+#endif
+#if TAMALR_VIDEO_MAX_SCALE >= 4
+  #include <images/32.h>
+#endif
+#if TAMALR_VIDEO_MAX_SCALE >= 8
+  #include <images/64.h>
+#endif
 
 #define TAMALR_AUDIO_FREQUENCY 44100
 #define TAMALR_AUDIO_PERIOD (1.0f / TAMALR_AUDIO_FREQUENCY)
-#define TAMALR_AUDIO_SAMPLES 44100 / 30
+#define TAMALR_AUDIO_SAMPLES TAMALR_AUDIO_FREQUENCY / TAMALR_FRAMERATE
 
-static int16_t audio_wavetable[9][TAMALR_AUDIO_SAMPLES];
+static int16_t audio_wavetable[9][TAMALR_AUDIO_SAMPLES * 2];
 static bool_t audio_wavetables_compiled = false;
 
 typedef struct tamalr_t
@@ -36,10 +47,10 @@ typedef struct tamalr_t
   bool_t video_buffer[LCD_HEIGHT][LCD_WIDTH];
   uint16_t video_screen[256 * 256];
   bool_t video_icons[ICON_NUM];
-
-  u12_t rom[12288 / 2];
-
   unsigned video_scale;
+
+  /* Magic number; this emulator should only accept one ROM */
+  u12_t rom[12288 / 2];
   
   hal_t hal;
 } tamalr_t;
@@ -328,6 +339,11 @@ float pf_wave(float x, u8_t cosine)
   return result;
 }
 
+static int16_t tamalr_sample(float s, unsigned t)
+{
+  return pf_wave((2 * PF_PI * s * t * TAMALR_AUDIO_PERIOD), false) * 0x7FFF;
+}
+
 void retro_init(void)
 {
   memset(&tamalr, 0, sizeof(tamalr));
@@ -340,16 +356,42 @@ void retro_init(void)
   {
     int i;
   
-    for (i = 0; i < TAMALR_AUDIO_SAMPLES; i++)
+    for (i = 0; i < TAMALR_AUDIO_SAMPLES * 2; i += 2)
     {
-      audio_wavetable[0][i] = pf_wave((2 * PF_PI * 4096.0 * (float)i * TAMALR_AUDIO_PERIOD), false);
-      audio_wavetable[1][i] = pf_wave((2 * PF_PI * 3276.8 * (float)i * TAMALR_AUDIO_PERIOD), false);
-      audio_wavetable[2][i] = pf_wave((2 * PF_PI * 2730.7 * (float)i * TAMALR_AUDIO_PERIOD), false);
-      audio_wavetable[3][i] = pf_wave((2 * PF_PI * 2340.6 * (float)i * TAMALR_AUDIO_PERIOD), false);
-      audio_wavetable[4][i] = pf_wave((2 * PF_PI * 2048.0 * (float)i * TAMALR_AUDIO_PERIOD), false);
-      audio_wavetable[5][i] = pf_wave((2 * PF_PI * 1638.4 * (float)i * TAMALR_AUDIO_PERIOD), false);
-      audio_wavetable[6][i] = pf_wave((2 * PF_PI * 1365.3 * (float)i * TAMALR_AUDIO_PERIOD), false);
-      audio_wavetable[7][i] = pf_wave((2 * PF_PI * 1170.3 * (float)i * TAMALR_AUDIO_PERIOD), false);
+      int16_t sample;
+
+      sample = tamalr_sample(4096.0, i);
+      audio_wavetable[0][i] = sample;
+      audio_wavetable[0][i+1] = sample;
+
+      sample = tamalr_sample(3276.8, i);
+      audio_wavetable[1][i] = sample;
+      audio_wavetable[1][i+1] = sample;
+
+      sample = tamalr_sample(2730.7, i);
+      audio_wavetable[2][i] = sample;
+      audio_wavetable[2][i+1] = sample;
+
+      sample = tamalr_sample(2340.6, i);
+      audio_wavetable[3][i] = sample;
+      audio_wavetable[3][i+1] = sample;
+
+      sample = tamalr_sample(2048.0, i);
+      audio_wavetable[4][i] = sample;
+      audio_wavetable[4][i+1] = sample;
+
+      sample = tamalr_sample(1638.4, i);
+      audio_wavetable[5][i] = sample;
+      audio_wavetable[5][i+1] = sample;
+
+      sample = tamalr_sample(1365.3, i);
+      audio_wavetable[6][i] = sample;
+      audio_wavetable[6][i+1] = sample;
+
+      sample = tamalr_sample(1170.3, i);
+      audio_wavetable[7][i] = sample;
+      audio_wavetable[7][i+1] = sample;
+
       audio_wavetable[8][i] = 0;
     }
     audio_wavetables_compiled = true;
@@ -396,7 +438,7 @@ void retro_run(void)
 {
   handle_input();
 
-  for (int i = 0; i < 200; i++)
+  for (int i = 0; i < 100; i++)
   {
     tamalib_set_exec_mode(EXEC_MODE_RUN);
     tamalib_step();
@@ -424,13 +466,13 @@ void retro_get_system_info(struct retro_system_info *info)
 void retro_get_system_av_info(struct retro_system_av_info *info)
 {
   memset(info, 0, sizeof(*info));
-  info->geometry.base_width   = LCD_WIDTH * 8;
-  info->geometry.base_height  = LCD_WIDTH * 8;
-  info->geometry.max_width    = LCD_WIDTH * 8;
-  info->geometry.max_height   = LCD_WIDTH * 8;
+  info->geometry.base_width   = LCD_WIDTH * TAMALR_VIDEO_MAX_SCALE;
+  info->geometry.base_height  = LCD_WIDTH * TAMALR_VIDEO_MAX_SCALE;
+  info->geometry.max_width    = LCD_WIDTH * TAMALR_VIDEO_MAX_SCALE;
+  info->geometry.max_height   = LCD_WIDTH * TAMALR_VIDEO_MAX_SCALE;
   info->geometry.aspect_ratio = 1.0;
-  info->timing.fps            = 30;
-  info->timing.sample_rate    = 44100;
+  info->timing.fps            = TAMALR_FRAMERATE;
+  info->timing.sample_rate    = TAMALR_AUDIO_FREQUENCY;
 }
 
 void retro_deinit(void)
