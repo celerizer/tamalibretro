@@ -571,7 +571,7 @@ size_t retro_serialize_size(void)
          /* prog_timer_data      */ sizeof(u8_t) +
          /* prog_timer_rld       */ sizeof(u8_t) +
          /* call_depth           */ sizeof(u32_t) +
-         /* interrupts           */ sizeof(interrupt_t) +
+         /* interrupts           */ sizeof(interrupt_t) * INT_SLOT_NUM +
          /* memory               */ MEM_BUFFER_SIZE;
 }
 
@@ -606,7 +606,7 @@ bool retro_serialize(void *data, size_t size)
   if (!tamalr_serialize(data, &offset, state->prog_timer_data, sizeof(u8_t))) return false;
   if (!tamalr_serialize(data, &offset, state->prog_timer_rld, sizeof(u8_t))) return false;
   if (!tamalr_serialize(data, &offset, state->call_depth, sizeof(u32_t))) return false;
-  if (!tamalr_serialize(data, &offset, state->interrupts, sizeof(interrupt_t))) return false;
+  if (!tamalr_serialize(data, &offset, state->interrupts, sizeof(interrupt_t) * INT_SLOT_NUM)) return false;
   if (!tamalr_serialize(data, &offset, state->memory, MEM_BUFFER_SIZE)) return false;
 
   return true;
@@ -643,7 +643,7 @@ bool retro_unserialize(const void *data, size_t size)
   if (!tamalr_unserialize(data, &offset, state->prog_timer_data, sizeof(u8_t))) return false;
   if (!tamalr_unserialize(data, &offset, state->prog_timer_rld, sizeof(u8_t))) return false;
   if (!tamalr_unserialize(data, &offset, state->call_depth, sizeof(u32_t))) return false;
-  if (!tamalr_unserialize(data, &offset, state->interrupts, sizeof(interrupt_t))) return false;
+  if (!tamalr_unserialize(data, &offset, state->interrupts, sizeof(interrupt_t) * INT_SLOT_NUM)) return false;
   if (!tamalr_unserialize(data, &offset, state->memory, MEM_BUFFER_SIZE)) return false;
 
   return true;
