@@ -45,11 +45,18 @@
 /**
  * The maximum volume of the audio waveform as a positive 16-bit integer.
  */
-#define TAMALR_AUDIO_VOLUME 0x7FFF
+#define TAMALR_AUDIO_VOLUME 0x1FFF
+
+typedef enum
+{
+  TAMALR_AUDIO_SQUARE = 0,
+  TAMALR_AUDIO_SINE
+} tamalr_audio_method;
 
 typedef struct tamalr_t
 {
   uint32_t audio_frequency;
+  tamalr_audio_method audio_method;
   bool_t audio_playing;
   int16_t audio_samples[TAMALR_AUDIO_SAMPLES * 2];
   unsigned audio_sample_pos;
@@ -122,8 +129,11 @@ void tamalr_log(log_level_t level, char *buff, ...)
 
 void tamalr_sleep_until(timestamp_t ts)
 {
-  //struct timespec sleep_time = { ts / 1000000, (ts % 1000000) * 1000 };
-  //nanosleep(&sleep_time, NULL);
+  /**
+   * @todo
+   * struct timespec sleep_time = { ts / 1000000, (ts % 1000000) * 1000 };
+   * nanosleep(&sleep_time, NULL);
+   */
 }
 
 timestamp_t tamalr_get_timestamp(void)
@@ -131,22 +141,27 @@ timestamp_t tamalr_get_timestamp(void)
   struct timespec current_time;
 
   clock_gettime(CLOCK_MONOTONIC, &current_time);
-  timestamp_t ts = (timestamp_t)(current_time.tv_sec * 1000000LL + current_time.tv_nsec / 1000LL);
+  timestamp_t ts = (timestamp_t)(
+    current_time.tv_sec * 1000000LL + current_time.tv_nsec / 1000LL);
 
   return ts;
 }
 
 void tamalr_update_screen(void)
 {
-  for (unsigned y = 0; y < LCD_HEIGHT; y++)
+  const unsigned char** images;
+  unsigned x, y, sx, sy, h, i;
+
+  /* Draw dot matrix in the inner part of the screen */
+  for (y = 0; y < LCD_HEIGHT; y++)
   {
-    for (unsigned x = 0; x < LCD_WIDTH; x++)
+    for (x = 0; x < LCD_WIDTH; x++)
     {
       uint16_t color = tamalr.video_buffer[y][x] ? 0x0000 : 0xFFFF;
 
-      for (unsigned sy = 0; sy < tamalr.video_scale; sy++)
+      for (sy = 0; sy < tamalr.video_scale; sy++)
       {
-        for (unsigned sx = 0; sx < tamalr.video_scale; sx++)
+        for (sx = 0; sx < tamalr.video_scale; sx++)
         {
           tamalr.video_screen[(tamalr.video_scale * LCD_WIDTH) *
                               (tamalr.video_scale * (y + 8) + sy) +
@@ -156,37 +171,44 @@ void tamalr_update_screen(void)
     }
   }
 
-  const unsigned char** images;
-
+  /* Draw icons around the outer part of the screen */
   switch (tamalr.video_scale)
   {
   case 1:
     images = images_8;
     break;
+#if TAMALR_VIDEO_MAX_SCALE >= 2
   case 2:
     images = images_16;
     break;
+#endif
+#if TAMALR_VIDEO_MAX_SCALE >= 4
   case 4:
     images = images_32;
     break;
+#endif
+#if TAMALR_VIDEO_MAX_SCALE >= 8
   case 8:
     images = images_64;
     break;
+#endif
   default:
     return;
   }
 
-  for (unsigned i = 0; i < ICON_NUM; i++)
+  for (i = 0; i < ICON_NUM; i++)
   {
-    unsigned x = (i % 4) * 8;
-    unsigned y = i >= 4 ? 24 * tamalr.video_scale : 0;
+    uint16_t *framebuffer_ptr;
+
+    x = (i % 4) * 8;
+    y = i >= 4 ? 24 * tamalr.video_scale : 0;
 
     /* Calculate base address in framebuffer where the image is copied */
-    unsigned short *framebuffer_ptr = (unsigned short*)&tamalr.video_screen[
+    framebuffer_ptr = (uint16_t*)&tamalr.video_screen[
       (tamalr.video_scale * LCD_WIDTH * y) + (tamalr.video_scale * x)
     ];
 
-    for (int h = 0; h < 8 * tamalr.video_scale; h++)
+    for (h = 0; h < 8 * tamalr.video_scale; h++)
     {
       if (tamalr.video_icons[i])
       {
@@ -217,7 +239,12 @@ void tamalr_set_lcd_icon(u8_t icon, bool_t val)
 
 static int16_t tamalr_sample(float s, unsigned t)
 {
-  return sin(2 * M_PI * s * t * TAMALR_AUDIO_PERIOD) * TAMALR_AUDIO_VOLUME;
+  if (tamalr.audio_method == TAMALR_AUDIO_SQUARE)
+    return sin(2 * M_PI * s * t * TAMALR_AUDIO_PERIOD) > 0 ? TAMALR_AUDIO_VOLUME : 0;
+  else if (tamalr.audio_method == TAMALR_AUDIO_SINE)
+    return sin(2 * M_PI * s * t * TAMALR_AUDIO_PERIOD) * TAMALR_AUDIO_VOLUME;
+  else 
+    return 0;
 }
 
 void tamalr_set_frequency(u32_t freq)
@@ -259,7 +286,6 @@ int tamalr_handler(void)
   return 0;
 }
 
-/* Initialize the global HAL structure with the stubbed functions */
 void init_tamalr_hal(void)
 {
   tamalr.hal.malloc = tamalr_malloc;
@@ -292,7 +318,7 @@ static retro_video_refresh_t video_cb;
 void retro_init(void)
 {
   memset(&tamalr, 0, sizeof(tamalr));
-  tamalr.video_scale = 8;
+  tamalr.video_scale = TAMALR_VIDEO_MAX_SCALE;
 
   if (!environ_cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &log_cb))
     log_cb = NULL;
@@ -319,7 +345,7 @@ bool retro_load_game(const struct retro_game_info *info)
     init_tamalr_hal();
     tamalib_register_hal(&tamalr.hal);
 
-    return tamalib_init(tamalr.rom, NULL, 1000000) == 0;
+    return tamalib_init(tamalr.rom, NULL, 60) == 0;
   }
   else
     return false;
@@ -336,6 +362,8 @@ void retro_unload_game(void)
 
 void retro_run(void)
 {
+  unsigned i;
+
   /* Handle input */
   input_poll_cb();
   tamalib_set_button(BTN_LEFT, input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y));
@@ -343,14 +371,14 @@ void retro_run(void)
   tamalib_set_button(BTN_MIDDLE, input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B));
 
   /* Handle emulation */
-  for (int i = 0; i < 100; i++)
+  for (i = 0; i < 100; i++)
   {
     tamalib_set_exec_mode(EXEC_MODE_RUN);
     tamalib_step();
   }
 
   /* Finish generating remaining audio samples */
-  for (unsigned i = tamalr.audio_sample_pos; i < TAMALR_AUDIO_SAMPLES; tamalr.audio_sine_pos++, i++)
+  for (i = tamalr.audio_sample_pos; i < TAMALR_AUDIO_SAMPLES; tamalr.audio_sine_pos++, i++)
   {
     int16_t sample = tamalr_sample(tamalr.audio_frequency / 10.0f, tamalr.audio_sine_pos);
 
