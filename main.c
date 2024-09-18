@@ -6,6 +6,8 @@
 #include <hal.h>
 #include <tamalib.h>
 
+#include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,21 +33,30 @@
 #endif
 
 #define TAMALR_AUDIO_FREQUENCY 44100
-#define TAMALR_AUDIO_PERIOD (1.0f / TAMALR_AUDIO_FREQUENCY)
-#define TAMALR_AUDIO_SAMPLES TAMALR_AUDIO_FREQUENCY / TAMALR_FRAMERATE
 
-static int16_t audio_wavetable[9][TAMALR_AUDIO_SAMPLES * 2];
-static bool_t audio_wavetables_compiled = false;
+#define TAMALR_AUDIO_PERIOD (1.0f / TAMALR_AUDIO_FREQUENCY)
+
+/**
+ * The number of audio samples per frame. Audio buffers should multiply this
+ * value by 2 to get the number of samples needed to fill the buffer.
+ */
+#define TAMALR_AUDIO_SAMPLES (TAMALR_AUDIO_FREQUENCY / TAMALR_FRAMERATE)
+
+/**
+ * The maximum volume of the audio waveform as a positive 16-bit integer.
+ */
+#define TAMALR_AUDIO_VOLUME 0x7FFF
 
 typedef struct tamalr_t
 {
-  bool_t audio_playing;
-  unsigned audio_sine_pos;
   uint32_t audio_frequency;
-  int16_t *audio_samples;
+  bool_t audio_playing;
+  int16_t audio_samples[TAMALR_AUDIO_SAMPLES * 2];
+  unsigned audio_sample_pos;
+  unsigned audio_sine_pos;
   
   bool_t video_buffer[LCD_HEIGHT][LCD_WIDTH];
-  uint16_t video_screen[256 * 256];
+  uint16_t video_screen[LCD_WIDTH * LCD_WIDTH * TAMALR_VIDEO_MAX_SCALE * TAMALR_VIDEO_MAX_SCALE];
   bool_t video_icons[ICON_NUM];
   unsigned video_scale;
 
@@ -73,7 +84,7 @@ void tamalr_halt(void)
 
 bool_t tamalr_is_log_enabled(log_level_t level)
 {
-  return 0;
+  return level == LOG_ERROR || level == LOG_INFO;
 }
 
 static const char *log_level(log_level_t level)
@@ -95,14 +106,18 @@ static const char *log_level(log_level_t level)
 
 void tamalr_log(log_level_t level, char *buff, ...)
 {
-/*
-  va_list args;
-  va_start(args, buff);
-  printf("[TAMALIB %s]: ", log_level(level));
-  vprintf(buff, args);
-  printf("\n");
-  va_end(args);
-*/
+  if (!tamalr_is_log_enabled(level))
+    return;
+  else
+  {
+    va_list args;
+
+    va_start(args, buff);
+    printf("[TAMALIB %s]: ", log_level(level));
+    vprintf(buff, args);
+    printf("\n");
+    va_end(args);
+  }
 }
 
 void tamalr_sleep_until(timestamp_t ts)
@@ -200,43 +215,41 @@ void tamalr_set_lcd_icon(u8_t icon, bool_t val)
     tamalr.video_icons[icon] = val;
 }
 
-/* todo */
+static int16_t tamalr_sample(float s, unsigned t)
+{
+  return sin(2 * M_PI * s * t * TAMALR_AUDIO_PERIOD) * TAMALR_AUDIO_VOLUME;
+}
+
 void tamalr_set_frequency(u32_t freq)
 {
-  tamalr.audio_frequency = freq;
-  switch (freq)
+  if (freq == tamalr.audio_frequency)
+    return;
+  else
   {
-  case 40960:
-    tamalr.audio_samples = audio_wavetable[0];
-    break;
-  case 32768:
-    tamalr.audio_samples = audio_wavetable[1];
-    break;
-  case 27307:
-    tamalr.audio_samples = audio_wavetable[2];
-    break;
-  case 23406:
-    tamalr.audio_samples = audio_wavetable[3];
-    break;
-  case 20480:
-    tamalr.audio_samples = audio_wavetable[4];
-    break;
-  case 16384:
-    tamalr.audio_samples = audio_wavetable[5];
-    break;
-  case 13653:
-    tamalr.audio_samples = audio_wavetable[6];
-    break;
-  case 11703:
-    tamalr.audio_samples = audio_wavetable[7];
-    break;
-  default:
-    tamalr.audio_samples = audio_wavetable[4];
+    const state_t *state = cpu_get_state();
+    float new_freq = freq / 10.0f;
+    unsigned new_sample_pos = (unsigned)(TAMALR_AUDIO_SAMPLES *
+                                         (float)(*state->tick_counter % 32768) /
+                                         (float)32768);
+    int16_t sample;
+    unsigned i;
+
+    for (i = tamalr.audio_sample_pos; i < new_sample_pos; tamalr.audio_sine_pos++, i++)
+    {
+      sample = tamalr_sample(new_freq, tamalr.audio_sine_pos);
+      tamalr.audio_samples[2 * i] = sample;
+      tamalr.audio_samples[2 * i + 1] = sample;
+    }
+    tamalr.audio_frequency = freq;
+    tamalr.audio_sample_pos = new_sample_pos;
+    tamalr.audio_sine_pos = 0;
   }
 }
 
 void tamalr_play_frequency(bool_t en)
 {
+  if (!en)
+    tamalr_set_frequency(0);
   tamalr.audio_playing = en;
 }
 
@@ -274,75 +287,7 @@ static retro_log_printf_t log_cb;
 static struct retro_rumble_interface rumble;
 static retro_video_refresh_t video_cb;
 
-void display_message(const char *msg)
-{
-  char *str = (char*)calloc(4096, sizeof(char));
-  struct retro_message rmsg;
-
-  snprintf(str, 4096, "%s", msg);
-  rmsg.frames = 300;
-  rmsg.msg = str;
-  environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &rmsg);
-}
-
-void handle_input(void)
-{
-  input_poll_cb();
-  tamalib_set_button(BTN_LEFT, input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y));
-  tamalib_set_button(BTN_RIGHT, input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A));
-  tamalib_set_button(BTN_MIDDLE, input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B));
-}
-
 /* libretro API */
-
-#define PF_PI 3.141592653589793115997963468544185161590576171875f
-
-/* Largest Taylor series factorial a float can hold */
-#define PF_TERMS 32
-
-float pf_factorial(u8_t x)
-{
-  float result = x;
-
-  for (x--; x > 1; x--)
-    result *= x;
-
-  return result;
-}
-
-float pf_power(float x, u8_t power)
-{
-  float result = x;
-
-  for (; power > 1; power--)
-    result *= x;
-
-  return result;
-}
-
-float pf_wave(float x, u8_t cosine)
-{
-  float next, result;
-  u8_t positive = true;
-  u8_t i;
-
-  while (x > 2 * PF_PI)
-    x -= 2 * PF_PI;
-  result = cosine ? 1 : x;
-  for (i = cosine ? 2 : 3; i <= PF_TERMS; i += 2)
-  {
-    positive ^= true;
-    next = pf_power(x, i) / pf_factorial(i);
-    result = positive ? result + next : result - next;
-  }
-
-  return result;
-}
-
-static int16_t tamalr_sample(float s, unsigned t)
-{
-  return pf_wave((2 * PF_PI * s * t * TAMALR_AUDIO_PERIOD), false) * 0x7FFF;
-}
 
 void retro_init(void)
 {
@@ -351,51 +296,6 @@ void retro_init(void)
 
   if (!environ_cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &log_cb))
     log_cb = NULL;
-
-  if (!audio_wavetables_compiled)
-  {
-    int i;
-  
-    for (i = 0; i < TAMALR_AUDIO_SAMPLES * 2; i += 2)
-    {
-      int16_t sample;
-
-      sample = tamalr_sample(4096.0, i);
-      audio_wavetable[0][i] = sample;
-      audio_wavetable[0][i+1] = sample;
-
-      sample = tamalr_sample(3276.8, i);
-      audio_wavetable[1][i] = sample;
-      audio_wavetable[1][i+1] = sample;
-
-      sample = tamalr_sample(2730.7, i);
-      audio_wavetable[2][i] = sample;
-      audio_wavetable[2][i+1] = sample;
-
-      sample = tamalr_sample(2340.6, i);
-      audio_wavetable[3][i] = sample;
-      audio_wavetable[3][i+1] = sample;
-
-      sample = tamalr_sample(2048.0, i);
-      audio_wavetable[4][i] = sample;
-      audio_wavetable[4][i+1] = sample;
-
-      sample = tamalr_sample(1638.4, i);
-      audio_wavetable[5][i] = sample;
-      audio_wavetable[5][i+1] = sample;
-
-      sample = tamalr_sample(1365.3, i);
-      audio_wavetable[6][i] = sample;
-      audio_wavetable[6][i+1] = sample;
-
-      sample = tamalr_sample(1170.3, i);
-      audio_wavetable[7][i] = sample;
-      audio_wavetable[7][i+1] = sample;
-
-      audio_wavetable[8][i] = 0;
-    }
-    audio_wavetables_compiled = true;
-  }
 }
 
 void retro_reset(void)
@@ -436,16 +336,32 @@ void retro_unload_game(void)
 
 void retro_run(void)
 {
-  handle_input();
+  /* Handle input */
+  input_poll_cb();
+  tamalib_set_button(BTN_LEFT, input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y));
+  tamalib_set_button(BTN_RIGHT, input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A));
+  tamalib_set_button(BTN_MIDDLE, input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B));
 
+  /* Handle emulation */
   for (int i = 0; i < 100; i++)
   {
     tamalib_set_exec_mode(EXEC_MODE_RUN);
     tamalib_step();
   }
 
-  audio_batch_cb(tamalr.audio_playing ? tamalr.audio_samples : audio_wavetable[8], TAMALR_AUDIO_SAMPLES);
+  /* Finish generating remaining audio samples */
+  for (unsigned i = tamalr.audio_sample_pos; i < TAMALR_AUDIO_SAMPLES; tamalr.audio_sine_pos++, i++)
+  {
+    int16_t sample = tamalr_sample(tamalr.audio_frequency / 10.0f, tamalr.audio_sine_pos);
 
+    tamalr.audio_samples[2 * i] = sample;
+    tamalr.audio_samples[2 * i + 1] = sample;
+  }
+  audio_batch_cb(tamalr.audio_samples, TAMALR_AUDIO_SAMPLES);
+  memset(tamalr.audio_samples, 0, sizeof(tamalr.audio_samples));
+  tamalr.audio_sample_pos = 0;
+
+  /* Handle video */
   tamalr.hal.update_screen();
   video_cb(tamalr.video_screen,
            LCD_WIDTH * tamalr.video_scale,
@@ -459,7 +375,7 @@ void retro_get_system_info(struct retro_system_info *info)
   info->library_name     = "TamaLIBretro";
   info->library_version  = GIT_VERSION;
   info->need_fullpath    = false;
-  info->valid_extensions = "rom|b|bin";
+  info->valid_extensions = "b|rom|bin";
   info->block_extract    = false;
 }
 
