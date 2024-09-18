@@ -1,5 +1,3 @@
-#define LOW_FOOTPRINT 0
-
 #include <libretro.h>
 
 #include <cpu.h>
@@ -68,7 +66,7 @@ typedef struct tamalr_t
   unsigned video_scale;
 
   /* Magic number; this emulator should only accept one ROM */
-  u12_t rom[12288 / 2];
+  u12_t rom[12288 / sizeof(u12_t)];
   
   hal_t hal;
 } tamalr_t;
@@ -401,7 +399,7 @@ void retro_get_system_info(struct retro_system_info *info)
 {
   memset(info, 0, sizeof(*info));
   info->library_name     = "TamaLIBretro";
-  info->library_version  = GIT_VERSION;
+  info->library_version  = "git" GIT_VERSION;
   info->need_fullpath    = false;
   info->valid_extensions = "b|rom|bin";
   info->block_extract    = false;
