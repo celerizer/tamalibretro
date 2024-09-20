@@ -28,6 +28,7 @@
 #endif
 #if TAMALR_VIDEO_MAX_SCALE >= 8
   #include <images/64.h>
+  #include <images/bg1.h>
 #endif
 
 #define TAMALR_AUDIO_FREQUENCY 44100
@@ -148,22 +149,27 @@ timestamp_t tamalr_get_timestamp(void)
 void tamalr_update_screen(void)
 {
   const unsigned char** images;
-  unsigned x, y, sx, sy, h, i;
+  unsigned x, y, sx, sy, i;
+
+  memcpy(tamalr.video_screen, bg1_raw, sizeof(bg1_raw));
 
   /* Draw dot matrix in the inner part of the screen */
   for (y = 0; y < LCD_HEIGHT; y++)
   {
     for (x = 0; x < LCD_WIDTH; x++)
     {
-      uint16_t color = tamalr.video_buffer[y][x] ? 0x0000 : 0xFFFF;
-
-      for (sy = 0; sy < tamalr.video_scale; sy++)
+      if (!tamalr.video_buffer[y][x])
+        continue;
+      else for (sy = 0; sy < tamalr.video_scale; sy++)
       {
         for (sx = 0; sx < tamalr.video_scale; sx++)
         {
-          tamalr.video_screen[(tamalr.video_scale * LCD_WIDTH) *
-                              (tamalr.video_scale * (y + 8) + sy) +
-                              (tamalr.video_scale * x + sx)] = color;
+          if (sx == 0 || sy == 0)
+            continue;
+          else
+            tamalr.video_screen[(tamalr.video_scale * LCD_WIDTH) *
+                                (tamalr.video_scale * (y + 8) + sy) +
+                                (tamalr.video_scale * x + sx)] = 0x0000;
         }
       }
     }
@@ -206,18 +212,21 @@ void tamalr_update_screen(void)
       (tamalr.video_scale * LCD_WIDTH * y) + (tamalr.video_scale * x)
     ];
 
-    for (h = 0; h < 8 * tamalr.video_scale; h++)
+    if (tamalr.video_icons[i])
     {
-      if (tamalr.video_icons[i])
+      for (sy = 0; sy < 8 * tamalr.video_scale; sy++)
       {
-        memcpy(&framebuffer_ptr[h * tamalr.video_scale * LCD_WIDTH],
-               &images[i][h * 16 * tamalr.video_scale],
-               8 * tamalr.video_scale * 2);
-      }
-      else
-      {
-        memset(&framebuffer_ptr[h * tamalr.video_scale * LCD_WIDTH], 0xFF,
-               8 * tamalr.video_scale * 2);
+        for (sx = 0; sx < 8 * tamalr.video_scale; sx++)
+        {
+          uint16_t ip = (uint16_t*)(images[i])[sy * 16 * tamalr.video_scale + sx * 2];
+          float blend = ((float)(ip & 0x1F) / (float)0x1F);
+          uint16_t *pixel = &framebuffer_ptr[sy * tamalr.video_scale * LCD_WIDTH + sx];
+          uint16_t r = (uint16_t)(((*pixel & 0xF800) >> 11) * blend) << 11;
+          uint16_t g = (uint16_t)(((*pixel & 0x07E0) >> 5) * blend) << 5;
+          uint16_t b = ((*pixel & 0x001F) * blend);
+
+          *pixel = r | g | b;
+        }
       }
     }
   }
