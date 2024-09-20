@@ -80,6 +80,8 @@ typedef struct tamalr_t
   /** The content data provided by the core, byteswapped to 12-bit words */
   u12_t rom[12288 / 2];
 
+  bool_t settings_sync_clock;
+
   unsigned ticks;
   
   /** The TamaLIB hardware abstraction layer function pointers */
@@ -373,10 +375,26 @@ void retro_unload_game(void)
 {
 }
 
+u8_t tamalr_bcd(unsigned num)
+{
+  return ((num / 10) << 4) | (num % 10);
+}
+
 void retro_run(void)
 {
   const state_t *state = cpu_get_state();
   unsigned temp_ticks, i;
+
+  /* Handle sync-to-host-clock hack */
+  if (tamalr.settings_sync_clock)
+  {
+    time_t time_raw = time(0);
+    struct tm *time_loc = localtime(&time_raw);
+
+    state->memory[0x000A] = tamalr_bcd(time_loc->tm_hour);
+    state->memory[0x0009] = tamalr_bcd(time_loc->tm_min);
+    state->memory[0x0008] = tamalr_bcd(time_loc->tm_sec);
+  }
 
   /* Handle input */
   input_poll_cb();
@@ -458,6 +476,7 @@ void retro_set_environment(retro_environment_t cb)
 {
   static const struct retro_variable vars[] = 
   {
+    { "sync_to_host_clock", "Sync to host clock;disabled|enabled" },
     { NULL, NULL },
   };
   static const struct retro_controller_description port[] =
