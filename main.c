@@ -47,6 +47,8 @@
  */
 #define TAMALR_AUDIO_VOLUME 0x1FFF
 
+#define TAMALR_TICKS_FRAME (32768 / TAMALR_FRAMERATE)
+
 typedef enum
 {
   TAMALR_AUDIO_SQUARE = 0,
@@ -62,14 +64,25 @@ typedef struct tamalr_t
   unsigned audio_sample_pos;
   unsigned audio_sine_pos;
   
+  /** The raw pixel data output to the LCD */
   bool_t video_buffer[LCD_HEIGHT][LCD_WIDTH];
-  uint16_t video_screen[LCD_WIDTH * LCD_WIDTH * TAMALR_VIDEO_MAX_SCALE * TAMALR_VIDEO_MAX_SCALE];
+
+  /** Which icons around the screen should be lit up */
   bool_t video_icons[ICON_NUM];
+
+  /** The final RGB565 framebuffer sent to the frontend */
+  uint16_t video_screen[LCD_WIDTH * LCD_WIDTH *
+                        TAMALR_VIDEO_MAX_SCALE * TAMALR_VIDEO_MAX_SCALE];
+  
+  /** Multiplier for magnifying LCD to the framebuffer */
   unsigned video_scale;
 
-  /* Magic number; this emulator should only accept one ROM */
+  /** The content data provided by the core, byteswapped to 12-bit words */
   u12_t rom[12288 / 2];
+
+  unsigned ticks;
   
+  /** The TamaLIB hardware abstraction layer function pointers */
   hal_t hal;
 } tamalr_t;
 
@@ -256,8 +269,8 @@ void tamalr_set_frequency(u32_t freq)
     const state_t *state = cpu_get_state();
     float new_freq = freq / 10.0f;
     unsigned new_sample_pos = (unsigned)(TAMALR_AUDIO_SAMPLES *
-                                         (float)(*state->tick_counter % 32768) /
-                                         (float)32768);
+                                         (float)(*state->tick_counter % TAMALR_TICKS_FRAME) /
+                                         (float)TAMALR_TICKS_FRAME);
     int16_t sample;
     unsigned i;
 
@@ -362,7 +375,8 @@ void retro_unload_game(void)
 
 void retro_run(void)
 {
-  unsigned i;
+  const state_t *state = cpu_get_state();
+  unsigned temp_ticks, i;
 
   /* Handle input */
   input_poll_cb();
@@ -371,11 +385,13 @@ void retro_run(void)
   tamalib_set_button(BTN_MIDDLE, input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B));
 
   /* Handle emulation */
-  for (i = 0; i < 100; i++)
+  do
   {
+    temp_ticks = tamalr.ticks;
     tamalib_set_exec_mode(EXEC_MODE_RUN);
     tamalib_step();
-  }
+    tamalr.ticks = *state->tick_counter % TAMALR_TICKS_FRAME;
+  } while (tamalr.ticks > temp_ticks);
 
   /* Finish generating remaining audio samples */
   for (i = tamalr.audio_sample_pos; i < TAMALR_AUDIO_SAMPLES; tamalr.audio_sine_pos++, i++)
