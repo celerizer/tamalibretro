@@ -1,6 +1,8 @@
 LIBRETRO_COMM_DIR = $(CORE_DIR)/libretro-common
 TAMALIB_DIR = $(CORE_DIR)/tamalib
 
+FLAGS += -DLOW_FOOTPRINT=0
+
 INCFLAGS := \
    -I$(CORE_DIR) \
    -I$(TAMALIB_DIR)

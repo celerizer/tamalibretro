@@ -2,7 +2,7 @@
 
 Implementation of the TamaLIB Tamagotchi P1 emulator as a libretro core
 
-![image](https://github.com/user-attachments/assets/34db2a6c-39ed-4b28-a160-7ae1138bbfc8)
+![image](https://github.com/user-attachments/assets/be833627-ec6e-4103-9cd2-6d29e8bfa82b)
 
 ## Usage
 - Load the libretro core with `tama.b` from the MAME set as content.
@@ -10,13 +10,18 @@ Implementation of the TamaLIB Tamagotchi P1 emulator as a libretro core
 - For play instructions, see the [official manual](https://www.bandai.com/amfile/file/download/file/167/product/1276811/).
 
 ## Controls
-| | RetroPad | Tamagotchi |
-|-|-|-|
-| ![y](https://github.com/user-attachments/assets/4a18efa5-ab53-4617-bcb3-3da92f71b651) | RetroPad Y | A (Select) |
-| ![b](https://github.com/user-attachments/assets/70fa7f03-51fe-4677-99a7-e757f4dcbcd1) | RetroPad B | B (Execute) |
-| ![a](https://github.com/user-attachments/assets/2ba2ac0e-e122-4c39-844b-4c80833d5593) | RetroPad A | C (Cancel) |
+| RetroPad | Tamagotchi |
+|-|-|
+| Y | A (Select) |
+| B | B (Execute) |
+| A | C (Cancel) |
 
 ## Building
 * `git clone https://github.com/celerizer/tamalibretro --recurse-submodules`
 * `cd tamalibretro`
 * `make`
+
+You can replace the backgrounds and icons in the `images` directory then run `convert.sh` to package them into the core.
+
+## License
+TamaLIB and TamaLIBretro are distributed under the GPLv2 license. See the LICENSE file for more information.
