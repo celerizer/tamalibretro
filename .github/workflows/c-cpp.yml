@@ -1,0 +1,38 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  # First job: Submodules at their current commit
+  build-current-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true  # Fetch submodules at their current commit
+
+      - name: make
+        run: make
+
+  # Second job: Submodules on their latest master branch
+  build-latest-master:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true  # Fetch submodules at their current commit initially
+
+      - name: Checkout latest master for submodules
+        run: |
+          git submodule foreach 'git checkout master && git pull origin master'
+
+      - name: Output current commit hash for each submodule
+        run: |
+          git submodule foreach 'echo "Submodule: $name @ Commit:" && git rev-parse HEAD'
+
+      - name: make
+        run: make
