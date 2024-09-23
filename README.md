@@ -1,6 +1,6 @@
 # TamaLIBretro
 
-Implementation of the TamaLIB Tamagotchi P1 emulator as a libretro core
+**TamaLIBretro** is an implementation of the **[TamaLIB](https://github.com/jcrona/tamalib)** Tamagotchi P1 emulation library as a libretro core.
 
 ![image](https://github.com/user-attachments/assets/be833627-ec6e-4103-9cd2-6d29e8bfa82b)
 
