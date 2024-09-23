@@ -388,10 +388,10 @@ void retro_run(void)
   /* Handle sync-to-host-clock hack */
   if (tamalr.settings_sync_clock)
   {
-    time_t time_raw = time(0);
+    time_t time_raw = time(0) + 1;
     struct tm *time_loc = localtime(&time_raw);
 
-    state->memory[0x000A] = tamalr_bcd(time_loc->tm_hour);
+    state->memory[0x000A] = time_loc->tm_hour;
     state->memory[0x0009] = tamalr_bcd(time_loc->tm_min);
     state->memory[0x0008] = tamalr_bcd(time_loc->tm_sec);
   }
