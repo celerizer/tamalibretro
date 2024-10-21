@@ -603,6 +603,7 @@ bool retro_unserialize(const void *data, size_t size)
   if (!tamalr_unserialize(data, &offset, state->call_depth, sizeof(u32_t))) return false;
   if (!tamalr_unserialize(data, &offset, state->interrupts, sizeof(interrupt_t) * INT_SLOT_NUM)) return false;
   if (!tamalr_unserialize(data, &offset, state->memory, MEM_BUFFER_SIZE)) return false;
+  tamalib_refresh_hw();
 
   return true;
 }
