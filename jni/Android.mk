@@ -1,6 +1,7 @@
 LOCAL_PATH := $(call my-dir)
 BASE_DIR   := $(LOCAL_PATH)/..
 CORE_DIR   := $(BASE_DIR)
+LIBRETRO_COMM_DIR := $(CORE_DIR)/libretro-common
 
 INCFLAGS := \
    -I$(CORE_DIR) \
