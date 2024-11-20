@@ -415,7 +415,11 @@ void retro_get_system_info(struct retro_system_info *info)
 {
   memset(info, 0, sizeof(*info));
   info->library_name     = "TamaLIBretro";
+#if defined(GIT_VERSION)
   info->library_version  = "git" GIT_VERSION;
+#else
+  info->library_version  = "git";
+#endif
   info->need_fullpath    = false;
   info->valid_extensions = "b|rom|bin";
   info->block_extract    = false;
