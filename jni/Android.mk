@@ -1,19 +1,10 @@
 LOCAL_PATH := $(call my-dir)
 BASE_DIR   := $(LOCAL_PATH)/..
 CORE_DIR   := $(BASE_DIR)
-LIBRETRO_COMM_DIR := $(CORE_DIR)/libretro-common
 
 INCFLAGS := \
    -I$(CORE_DIR) \
-   -I$(CORE_DIR)/tamalib \
-   -I$(LIBRETRO_COMM_DIR)/include \
-   -I$(LIBRETRO_COMM_DIR)/include/compat \
-   -I$(LIBRETRO_COMM_DIR)/include/encodings \
-   -I$(LIBRETRO_COMM_DIR)/include/file \
-   -I$(LIBRETRO_COMM_DIR)/include/streams \
-   -I$(LIBRETRO_COMM_DIR)/include/string \
-   -I$(LIBRETRO_COMM_DIR)/include/time \
-   -I$(LIBRETRO_COMM_DIR)/include/vfs
+   -I$(CORE_DIR)/tamalib
 
 include $(BASE_DIR)/Makefile.common
 
