@@ -1,19 +1,12 @@
-LIBRETRO_COMM_DIR = $(CORE_DIR)/libretro-common
-TAMALIB_DIR = $(CORE_DIR)/tamalib
+LIBRETRO_COMM_DIR := $(CORE_DIR)/libretro-common
+TAMALIB_DIR := $(CORE_DIR)/tamalib
 
 FLAGS += -DLOW_FOOTPRINT=0
 
 INCFLAGS := \
    -I$(CORE_DIR) \
-   -I$(TAMALIB_DIR)
-
-INCFLAGS += -I$(LIBRETRO_COMM_DIR)/include \
-   -I$(LIBRETRO_COMM_DIR)/include/compat \
-   -I$(LIBRETRO_COMM_DIR)/include/encodings \
-   -I$(LIBRETRO_COMM_DIR)/include/file \
-   -I$(LIBRETRO_COMM_DIR)/include/streams \
-   -I$(LIBRETRO_COMM_DIR)/include/string \
-   -I$(LIBRETRO_COMM_DIR)/include/vfs
+   -I$(TAMALIB_DIR) \
+   -I$(LIBRETRO_COMM_DIR)/include
 
 ifneq (,$(findstring msvc2003,$(platform)))
 INCFLAGS += -I$(LIBRETRO_COMM_DIR)/include/compat/msvc
