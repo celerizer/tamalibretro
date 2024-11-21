@@ -3,7 +3,7 @@ CORE_DIR   := $(LOCAL_PATH)/..
 
 include $(CORE_DIR)/Makefile.common
 
-COREFLAGS := -D__LIBRETRO__ -DLOW_FOOTPRINT=0
+COREFLAGS := -D__LIBRETRO__ -DLOW_FOOTPRINT=0 $(INCFLAGS)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE    := retro
