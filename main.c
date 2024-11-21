@@ -11,6 +11,10 @@
 #include <string.h>
 #include <time.h>
 
+#if defined(__wiiu__) && defined(__wut__)
+  #include <newlib.h>
+#endif
+
 #ifndef TAMALR_VIDEO_MAX_SCALE
   #define TAMALR_VIDEO_MAX_SCALE 8
 #endif
