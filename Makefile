@@ -283,6 +283,7 @@ else ifneq (,$(filter $(platform), ngc wii wiiu))
    # Nintendo WiiU
    ifneq (,$(findstring wiiu,$(platform)))
       ENDIANNESS_DEFINES += -DWIIU -DHW_RVL
+      EXTRA_INCLUDES += -I$(WUT_ROOT)/include
 
    # Nintendo Wii
    else ifneq (,$(findstring wii,$(platform)))
