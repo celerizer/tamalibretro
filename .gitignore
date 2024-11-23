@@ -2,6 +2,7 @@
 *.o
 *.dll
 *.so
+*.a
 /images/8
 /images/16
 /images/32

@@ -16,6 +16,7 @@ SOURCES_C := \
    $(TAMALIB_DIR)/cpu.c \
    $(TAMALIB_DIR)/hw.c \
    $(TAMALIB_DIR)/tamalib.c \
+   $(CORE_DIR)/platform.c \
    $(CORE_DIR)/main.c
 
 ifneq ($(STATIC_LINKING), 1)

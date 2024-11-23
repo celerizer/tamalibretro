@@ -11,9 +11,7 @@
 #include <string.h>
 #include <time.h>
 
-#if defined(__wiiu__) && defined(__wut__)
-  #include <newlib.h>
-#endif
+#include "platform.h"
 
 #ifndef TAMALR_VIDEO_MAX_SCALE
   #define TAMALR_VIDEO_MAX_SCALE 8
@@ -155,7 +153,7 @@ timestamp_t tamalr_get_timestamp(void)
 {
   struct timespec current_time;
 
-  clock_gettime(CLOCK_MONOTONIC, &current_time);
+  tamalr_clock_gettime(CLOCK_MONOTONIC, &current_time);
   timestamp_t ts = (timestamp_t)(
     current_time.tv_sec * 1000000LL + current_time.tv_nsec / 1000LL);
 
