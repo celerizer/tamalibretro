@@ -1,4 +1,4 @@
-#if defined(__wiiu__)
+#if defined(WIIU)
 #include <coreinit/systeminfo.h>
 #include <coreinit/time.h>
 #include <sys/errno.h>
@@ -11,7 +11,7 @@
 
 int tamalr_clock_gettime(clockid_t clock_id, struct timespec *tp)
 {
-#if defined(__wiiu__)
+#if defined(WIIU)
   if (clock_id == CLOCK_MONOTONIC) {
     OSTime time = OSGetSystemTime();
     tp->tv_sec = (time_t)OSTicksToSeconds(time);
