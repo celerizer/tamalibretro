@@ -269,6 +269,22 @@ else ifeq ($(platform), switch)
    include $(LIBTRANSISTOR_HOME)/libtransistor.mk
    STATIC_LINKING=1
 
+# Nintendo 64
+else ifeq ($(platform), n64)
+   TARGET := $(TARGET_NAME)_libretro_$(platform).dso
+   include $(N64_INST)/include/n64.mk
+   CC = $(N64_CC)$(EXE_EXT)
+   CXX = $(N64_CXX)$(EXE_EXT)
+   AR = $(N64_AR)$(EXE_EXT)
+   AS = $(N64_AS)$(EXE_EXT)
+   LD = $(N64_LD)$(EXE_EXT)
+
+   CFLAGS += $(N64_CFLAGS) -mno-gpopt -DN64_DSO $(DSO_CFLAGS)
+   CXXFLAGS += $(N64_CXXFLAGS) -mno-gpopt -DN64_DSO $(DSO_CXXFLAGS)
+   ASFLAGS += $(N64_ASFLAGS)
+   RSPASFLAGS += $(N64_RSPASFLAGS)
+   LDFLAGS += $(N64_DSOLDFLAGS) -Map=$(basename $(DSO_ELF)).map -G4
+
 # Nintendo Game Cube / Wii / WiiU
 else ifneq (,$(filter $(platform), ngc wii wiiu))
    TARGET := $(TARGET_NAME)_libretro_$(platform).a

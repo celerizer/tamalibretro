@@ -6,3 +6,6 @@
 /images/16
 /images/32
 /images/64
+*.dso
+*.d
+.map
